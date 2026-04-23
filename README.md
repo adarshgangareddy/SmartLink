@@ -101,4 +101,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-*Built with ❤️ by [Your Name/Team]*
+*Built with ❤️ by [Adarsh](https://github.com/adarshgangareddy)*
