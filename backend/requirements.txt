@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+motor
+python-jose[cryptography]
+passlib[bcrypt]
+pydantic[email]
+pydantic-settings
+python-multipart
+qrcode[pil]
+user-agents
+httpx
+cors
+gunicorn
+boto3
+razorpay
+redis
+
