@@ -56,7 +56,16 @@ const GoPro = () => {
       };
       document.body.appendChild(script);
     } catch (err) {
-      const errorMsg = err.response?.data?.detail || 'Failed to initiate payment. Please check your network or try again later.';
+      let errorMsg = 'Failed to initiate payment. Please check your network or try again later.';
+      if (err.response?.data?.detail) {
+        if (Array.isArray(err.response.data.detail)) {
+          errorMsg = err.response.data.detail.map(e => e.msg).join(', ');
+        } else if (typeof err.response.data.detail === 'string') {
+          errorMsg = err.response.data.detail;
+        } else {
+          errorMsg = JSON.stringify(err.response.data.detail);
+        }
+      }
       toast.error(errorMsg, { duration: 5000 });
       console.error("Order creation failed:", err);
     }

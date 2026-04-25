@@ -48,8 +48,17 @@ const AuthPage = ({ type }) => {
         toast.success('Account created successfully!');
         navigate('/dashboard');
       }
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'An error occurred');
+      let errorMsg = 'An error occurred';
+      if (err.response?.data?.detail) {
+        if (Array.isArray(err.response.data.detail)) {
+          errorMsg = err.response.data.detail.map(e => e.msg).join(', ');
+        } else if (typeof err.response.data.detail === 'string') {
+          errorMsg = err.response.data.detail;
+        } else {
+          errorMsg = JSON.stringify(err.response.data.detail);
+        }
+      }
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }

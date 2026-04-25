@@ -123,6 +123,7 @@ class ClientDeviceResponse(BaseModel):
     user_id: str
     api_key_id: str
     status: str = "active"
+    metadata: Optional[Dict[str, Any]] = {}
     last_active: Optional[datetime] = None
     created_at: datetime
     usage_stats: Dict[str, int] = {"api_calls": 0}

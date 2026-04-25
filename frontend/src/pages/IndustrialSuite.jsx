@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Zap, Key, Plus, Trash2, Copy, Check, Globe, Smartphone, BarChart3, ShieldCheck, Mail, Send, Loader2, Save, FileJson, AlertCircle } from 'lucide-react';
+import { Zap, Key, Plus, Trash2, Copy, Check, Globe, Smartphone, BarChart3, ShieldCheck, Mail, Send, Loader2, Save, FileJson, AlertCircle, Cpu, Activity, Droplets, Thermometer, Power, RefreshCw, LayoutDashboard, Info } from 'lucide-react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 import { useAuth } from '../context/AuthContext';
@@ -9,7 +9,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const IndustrialSuite = () => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('api'); // api, bulk, webhooks, analytics, automation
+  const [activeTab, setActiveTab] = useState('projects'); // projects, api, bulk, webhooks, analytics, automation
   const [apiKeys, setApiKeys] = useState([]);
   const [newKeyName, setNewKeyName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,14 +37,143 @@ const IndustrialSuite = () => {
     action_target: ''
   });
 
+  // IoT / Device State
+  const [devices, setDevices] = useState([]);
+  const [selectedDevice, setSelectedDevice] = useState(null);
+  const [deviceEvents, setDeviceEvents] = useState([]);
+  const [newDevice, setNewDevice] = useState({ name: '', metadata: { type: 'irrigation', widgets: ['moisture', 'temp', 'electricity'] } });
+  const [showConfigModal, setShowConfigModal] = useState(false);
+
+  const availableWidgets = [
+    { id: 'moisture', label: 'Soil Moisture', icon: <Droplets size={14} />, color: 'emerald' },
+    { id: 'temp', label: 'Ambient Temp', icon: <Thermometer size={14} />, color: 'orange' },
+    { id: 'humidity', label: 'Air Humidity', icon: <Activity size={14} />, color: 'blue' },
+    { id: 'light', label: 'Light Level', icon: <Zap size={14} />, color: 'yellow' },
+    { id: 'electricity', label: 'Electricity', icon: <Power size={14} />, color: 'indigo' },
+  ];
+
+
   useEffect(() => {
     switch(activeTab) {
       case 'api': fetchApiKeys(); break;
       case 'webhooks': fetchWebhooks(); fetchWebhookLogs(); break;
       case 'analytics': fetchIndustrialStats(); break;
       case 'automation': fetchRules(); fetchWebhooks(); break;
+      case 'projects': fetchDevices(); fetchApiKeys(); break;
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (selectedDevice) {
+      fetchDeviceEvents(selectedDevice._id);
+      const interval = setInterval(() => fetchDeviceEvents(selectedDevice._id), 5000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedDevice]);
+
+  const fetchDevices = async () => {
+    try {
+      setLoading(true);
+      const res = await axios.get('/api/industrial/devices');
+      setDevices(res.data);
+    } catch (err) {} finally { setLoading(false); }
+  };
+
+  const createDevice = async () => {
+    if (!newDevice.name) return toast.error('Please enter a project name');
+    try {
+      setLoading(true);
+      const res = await axios.post('/api/industrial/devices', {
+        name: newDevice.name,
+        api_key_id: apiKeys[0]?._id || '', // Use first key or placeholder
+        metadata: newDevice.metadata
+      });
+      setDevices([...devices, res.data]);
+      setNewDevice({ name: '', metadata: { type: 'irrigation' } });
+      toast.success('IoT Project initialized');
+    } catch (err) {
+      toast.error('Failed to create project');
+    } finally { setLoading(false); }
+  };
+
+  const fetchDeviceEvents = async (id) => {
+    try {
+      // 1. Fetch simulation data (Live Sensor Data)
+      const simRes = await axios.get(`/api/industrial/devices/${id}/data`);
+      const simData = simRes.data;
+      
+      // 2. Fetch event history from database
+      const res = await axios.get(`/api/industrial/devices/${id}/events`);
+      
+      // 3. Create a 'live' event from simulation data to show in charts/widgets
+      const liveEvent = {
+        _id: 'sim-' + Date.now(),
+        timestamp: simData.timestamp,
+        data: {
+          moisture: simData.moisture,
+          temp: simData.temperature,
+          humidity: simData.humidity || 55, // Simulation fallback
+          pump: simData.pump
+        }
+      };
+      
+      // Merge live data at the top of the history list
+      setDeviceEvents([liveEvent, ...res.data]);
+
+      // 4. Update the local pump status in UI if it changed in backend
+      const serverPumpStatus = simData.pump.toLowerCase();
+      if (selectedDevice?._id === id && selectedDevice.metadata?.pump_status !== serverPumpStatus) {
+          setSelectedDevice(prev => ({
+              ...prev,
+              metadata: { ...prev.metadata, pump_status: serverPumpStatus }
+          }));
+      }
+    } catch (err) {
+      console.error("Polling failed:", err);
+    }
+  };
+
+  const sendDeviceCommand = async (id, command) => {
+    try {
+      // If controlling the pump, use the simulation control endpoint
+      if (command.pump) {
+          await axios.post(`/api/industrial/devices/${id}/control`, { 
+              pump: command.pump.toUpperCase() 
+          });
+      }
+      
+      // Also log the command in the database (standard workflow)
+      await axios.post(`/api/industrial/devices/${id}/command`, command);
+      
+      toast.success(`Command sent: ${command.pump ? 'PUMP ' + command.pump.toUpperCase() : JSON.stringify(command)}`);
+      
+      // Immediate UI update for smooth experience
+      const updatedDevices = devices.map(d => d._id === id ? { ...d, metadata: { ...d.metadata, ...command } } : d);
+      setDevices(updatedDevices);
+      if (selectedDevice?._id === id) {
+        setSelectedDevice(updatedDevices.find(d => d._id === id));
+      }
+    } catch (err) {
+      toast.error('Command delivery failed');
+    }
+  };
+
+  const updateDeviceWidgets = async (widgetIds) => {
+    if (!selectedDevice) return;
+    try {
+      const updatedMetadata = { ...selectedDevice.metadata, widgets: widgetIds };
+      await axios.put(`/api/industrial/devices/${selectedDevice._id}`, { metadata: updatedMetadata });
+      
+      const updatedDevices = devices.map(d => d._id === selectedDevice._id ? { ...d, metadata: updatedMetadata } : d);
+      setDevices(updatedDevices);
+      setSelectedDevice({ ...selectedDevice, metadata: updatedMetadata });
+      toast.success('Dashboard configuration saved');
+      setShowConfigModal(false);
+    } catch (err) {
+      toast.error('Failed to save configuration');
+    }
+  };
+
 
   const fetchRules = async () => {
     try {
@@ -234,14 +363,15 @@ const IndustrialSuite = () => {
                 animate={{ opacity: 1, x: 0 }}
                 className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary-500/10 border border-primary-500/20 text-primary-400 font-bold text-[10px] tracking-widest uppercase"
             >
-                <Zap size={12} /> Industrial Suite
+                <Zap size={12} /> Industrial Suite {user?.is_pro && '• Professional'}
             </motion.div>
-            <h1 className="text-4xl font-extrabold text-white">Advanced Control Plane</h1>
-            <p className="text-slate-500 max-w-xl">Issue secure tokens, manage bulk operations, and integrate SmartLink directly into your IoT devices or enterprise apps.</p>
+            <h1 className="text-4xl font-extrabold text-white">Industrial Control Plane</h1>
+            <p className="text-slate-500 max-w-xl">The mission control for your IoT devices, enterprise APIs, and automated workflows.</p>
         </div>
         
-        <div className="flex bg-slate-900/50 p-1.5 rounded-2xl border border-white/5 self-start overflow-x-auto">
+        <div className="flex bg-slate-900/50 p-1.5 rounded-2xl border border-white/5 self-start overflow-x-auto custom-scrollbar">
             {[
+                { id: 'projects', label: 'IoT Fleet', icon: <Activity size={16} /> },
                 { id: 'api', label: 'API Keys', icon: <Key size={16} /> },
                 { id: 'bulk', label: 'Bulk Engine', icon: <FileJson size={16} /> },
                 { id: 'webhooks', label: 'Webhooks', icon: <Send size={16} /> },
@@ -263,10 +393,10 @@ const IndustrialSuite = () => {
       {/* Stats Quick Banner */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
+          { label: 'IoT Projects', value: devices.length, icon: <Activity size={16} />, color: 'emerald' },
           { label: 'Active Keys', value: apiKeys.length, icon: <Key size={16} />, color: 'primary' },
-          { label: 'Webhooks', value: webhooks.length, icon: <Send size={16} />, color: 'emerald' },
-          { label: 'API Requests (30d)', value: industrialStats?.total_requests || 0, icon: <Zap size={16} />, color: 'orange' },
-          { label: 'Avg Latency', value: '42ms', icon: <Loader2 size={16} />, color: 'blue' },
+          { label: 'API Requests', value: industrialStats?.total_requests || 0, icon: <Zap size={16} />, color: 'orange' },
+          { label: 'Latency', value: '42ms', icon: <Loader2 size={16} />, color: 'blue' },
         ].map(stat => (
           <div key={stat.label} className="glass-morphism p-4 rounded-2xl border border-white/5 flex items-center gap-4">
             <div className={`p-2.5 rounded-xl bg-${stat.color}-500/10 text-${stat.color}-400`}>
@@ -280,7 +410,376 @@ const IndustrialSuite = () => {
         ))}
       </div>
 
+      {/* Quick Start Guide */}
+      <motion.div 
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-morphism p-6 rounded-[2rem] border border-primary-500/10 bg-primary-500/5 flex flex-col md:flex-row items-center gap-6"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-primary-500/20 flex items-center justify-center text-primary-400 shrink-0">
+            <Info size={24} />
+        </div>
+        <div className="flex-1 text-center md:text-left">
+            <h4 className="text-sm font-black text-white uppercase tracking-widest mb-1">Industrial Quick Start</h4>
+            <p className="text-xs text-slate-400 leading-relaxed">
+                1. Generate an <span className="text-primary-400 font-bold">API Key</span> to authorize devices. 
+                2. Create an <span className="text-primary-400 font-bold">IoT Project</span> to start monitoring sensors. 
+                3. Configure <span className="text-primary-400 font-bold">Webhooks</span> to send data to your own server.
+            </p>
+        </div>
+        <button 
+            onClick={() => window.open('/docs/industrial', '_blank')}
+            className="px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black text-white uppercase tracking-widest transition-all"
+        >
+            Read Full Docs
+        </button>
+      </motion.div>
+
       <AnimatePresence mode="wait">
+        {activeTab === 'projects' && (
+          <motion.div 
+            key="projects"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="space-y-8"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                {/* Device List Sidebar */}
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="glass-morphism p-6 rounded-[2rem] border border-white/10 space-y-4">
+                        <h3 className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <Plus size={14} /> Initialize Project
+                        </h3>
+                        <div className="space-y-3">
+                            <input 
+                                type="text"
+                                placeholder="Project Name..."
+                                className="w-full px-4 py-3 bg-slate-950 border border-white/10 rounded-xl text-white text-xs"
+                                value={newDevice.name}
+                                onChange={(e) => setNewDevice({...newDevice, name: e.target.value})}
+                            />
+                            <select 
+                                className="w-full px-4 py-3 bg-slate-950 border border-white/10 rounded-xl text-white text-xs"
+                                value={newDevice.metadata.type}
+                                onChange={(e) => setNewDevice({...newDevice, metadata: {...newDevice.metadata, type: e.target.value}})}
+                            >
+                                <option value="irrigation">Plant Irrigation</option>
+                                <option value="weather">Weather Station</option>
+                                <option value="security">Smart Security</option>
+                            </select>
+                            <button 
+                                onClick={createDevice}
+                                className="w-full py-3 premium-gradient text-white font-bold rounded-xl text-xs hover:scale-[1.02] transition-transform"
+                            >
+                                Create Device
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        {devices.map(device => (
+                            <button
+                                key={device._id}
+                                onClick={() => setSelectedDevice(device)}
+                                className={`w-full p-4 rounded-2xl border transition-all text-left group ${selectedDevice?._id === device._id ? 'bg-primary-500 border-primary-400 text-white shadow-lg shadow-primary-500/20' : 'bg-slate-900/50 border-white/5 text-slate-400 hover:border-white/20'}`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${selectedDevice?._id === device._id ? 'bg-white/20' : 'bg-white/5'}`}>
+                                        <Activity size={16} />
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-sm">{device.name}</p>
+                                        <p className={`text-[10px] ${selectedDevice?._id === device._id ? 'text-white/70' : 'text-slate-500'}`}>
+                                            {device.status?.toUpperCase() || 'UNKNOWN'} • {device.metadata?.type || 'unknown'}
+                                        </p>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Project Dashboard Area */}
+                <div className="lg:col-span-3">
+                    {selectedDevice ? (
+                        <div className="space-y-8">
+                            {/* Irrigation Specialized Dashboard */}
+                            {selectedDevice.metadata?.type === 'irrigation' && (
+                                <div className="space-y-6">
+                                    {/* Alert Banner */}
+                                    {deviceEvents[0] && deviceEvents[0].data?.moisture < (selectedDevice.metadata?.moisture_threshold || 30) && (
+                                        <motion.div 
+                                            initial={{ scale: 0.95, opacity: 0 }}
+                                            animate={{ scale: 1, opacity: 1 }}
+                                            className="p-4 bg-red-500 text-white rounded-2xl flex items-center justify-between shadow-lg shadow-red-500/40 animate-pulse"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <AlertCircle size={20} />
+                                                <div>
+                                                    <p className="text-sm font-black uppercase tracking-widest">Critical Alert: Low Moisture</p>
+                                                    <p className="text-[10px] opacity-80">Soil moisture is at {deviceEvents[0].data?.moisture}%. Recommended to start pump.</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => sendDeviceCommand(selectedDevice._id, { pump: 'on' })}
+                                                className="px-4 py-2 bg-white text-red-500 font-black text-[10px] rounded-lg uppercase"
+                                            >
+                                                Start Pump Now
+                                            </button>
+                                        </motion.div>
+                                    )}
+
+                                    <div className="glass-morphism p-8 rounded-[3rem] border border-white/10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                                                <Droplets size={32} />
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h2 className="text-2xl font-black text-white">{selectedDevice.name} Dashboard</h2>
+                                                    <button 
+                                                        onClick={() => copyToClipboard(selectedDevice._id, 'device-id')}
+                                                        className="p-1.5 bg-white/5 rounded-lg text-slate-500 hover:text-primary-400 transition-colors"
+                                                        title="Copy Device ID"
+                                                    >
+                                                        <Copy size={14} />
+                                                    </button>
+                                                </div>
+                                                <p className="text-slate-500 text-sm flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                    System Online • Live Monitoring
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <button 
+                                                onClick={() => sendDeviceCommand(selectedDevice._id, { pump: selectedDevice.metadata?.pump_status === 'on' ? 'off' : 'on' })}
+                                                className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all ${selectedDevice.metadata?.pump_status === 'on' ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'}`}
+                                            >
+                                                <Power size={18} />
+                                                Pump {selectedDevice.metadata?.pump_status === 'on' ? 'OFF' : 'ON'}
+                                            </button>
+                                            <button className="p-3 bg-white/5 rounded-2xl border border-white/5 text-slate-400 hover:text-white transition-colors">
+                                                <RefreshCw size={18} />
+                                            </button>
+                                            <button 
+                                                onClick={() => setShowConfigModal(true)}
+                                                className="p-3 bg-white/5 rounded-2xl border border-white/5 text-slate-400 hover:text-primary-400 transition-colors"
+                                                title="Configure Widgets"
+                                            >
+                                                <Zap size={18} />
+                                            </button>
+
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        {(selectedDevice.metadata?.widgets || ['moisture', 'temp', 'electricity']).map(widgetId => {
+                                            const latestEvent = deviceEvents[0];
+                                            const hasData = !!latestEvent;
+
+                                            if (widgetId === 'moisture') return (
+                                                <div key="moisture" className="glass-morphism p-6 rounded-[2.5rem] border border-white/10 space-y-4">
+                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Soil Moisture</p>
+                                                    <div className="flex items-end gap-2">
+                                                        <p className="text-4xl font-black text-white">{hasData ? `${latestEvent.data.moisture}%` : '--'}</p>
+                                                        <p className={`text-xs font-bold mb-1.5 flex items-center gap-1 ${hasData ? 'text-emerald-400' : 'text-slate-600'}`}>
+                                                            {hasData ? 'Optimal' : 'Waiting...'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
+                                                        <motion.div 
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: hasData ? `${latestEvent.data.moisture}%` : '0%' }}
+                                                            className="h-full bg-emerald-500" 
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+
+                                            if (widgetId === 'temp') return (
+                                                <div key="temp" className="glass-morphism p-6 rounded-[2.5rem] border border-white/10 space-y-4">
+                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ambient Temp</p>
+                                                    <div className="flex items-end gap-2">
+                                                        <p className="text-4xl font-black text-white">{hasData ? `${latestEvent.data.temp}°C` : '--'}</p>
+                                                        <p className={`text-xs font-bold mb-1.5 flex items-center gap-1 ${hasData ? 'text-orange-400' : 'text-slate-600'}`}>
+                                                            {hasData ? 'Warm' : 'No Data'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold">
+                                                        <Thermometer size={12} /> Live Sensor Reading
+                                                    </div>
+                                                </div>
+                                            );
+
+                                            if (widgetId === 'humidity') return (
+                                                <div key="humidity" className="glass-morphism p-6 rounded-[2.5rem] border border-white/10 space-y-4">
+                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Air Humidity</p>
+                                                    <div className="flex items-end gap-2">
+                                                        <p className="text-4xl font-black text-white">{hasData && latestEvent.data.humidity ? `${latestEvent.data.humidity}%` : '--'}</p>
+                                                        <p className={`text-xs font-bold mb-1.5 flex items-center gap-1 ${hasData ? 'text-blue-400' : 'text-slate-600'}`}>
+                                                            {hasData ? 'Normal' : 'No Data'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="h-2 w-full bg-slate-900 rounded-full overflow-hidden">
+                                                        <motion.div 
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: hasData && latestEvent.data.humidity ? `${latestEvent.data.humidity}%` : '0%' }}
+                                                            className="h-full bg-blue-500" 
+                                                        />
+                                                    </div>
+                                                </div>
+                                            );
+
+                                            if (widgetId === 'light') return (
+                                                <div key="light" className="glass-morphism p-6 rounded-[2.5rem] border border-white/10 space-y-4">
+                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Light Level</p>
+                                                    <div className="flex items-end gap-2">
+                                                        <p className="text-4xl font-black text-white">{hasData && latestEvent.data.light ? `${latestEvent.data.light}lx` : '--'}</p>
+                                                        <p className={`text-xs font-bold mb-1.5 flex items-center gap-1 ${hasData ? 'text-yellow-400' : 'text-slate-600'}`}>
+                                                            {hasData ? 'Daylight' : 'No Data'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold">
+                                                        <Zap size={12} /> Sensor Active
+                                                    </div>
+                                                </div>
+                                            );
+
+                                            if (widgetId === 'electricity') return (
+                                                <div key="electricity" className="glass-morphism p-6 rounded-[2.5rem] border border-white/10 space-y-4">
+                                                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Electricity</p>
+                                                    <div className="flex items-end gap-2">
+                                                        <p className="text-4xl font-black text-white">{hasData ? 'ON' : '--'}</p>
+                                                        <p className={`text-xs font-bold mb-1.5 flex items-center gap-1 ${hasData ? 'text-indigo-400' : 'text-slate-600'}`}>
+                                                            {hasData ? 'Stable' : 'Unknown'}
+                                                        </p>
+                                                    </div>
+                                                    <p className="text-slate-500 text-[10px] font-bold">Source: Main Grid</p>
+                                                </div>
+                                            );
+
+                                            return null;
+                                        })}
+                                    </div>
+
+                                    {/* Moisture History */}
+                                    <div className="glass-morphism p-8 rounded-[3rem] border border-white/10 space-y-6">
+                                        <h4 className="font-bold text-white flex items-center gap-2">
+                                            <Activity size={18} className="text-primary-400" /> Moisture History (Real-time)
+                                        </h4>
+                                        <div className="h-[300px] w-full">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <AreaChart data={deviceEvents.slice(0, 20).reverse().map(e => ({
+                                                    time: new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                                                    moisture: e.data.moisture
+                                                }))}>
+                                                    <defs>
+                                                        <linearGradient id="colorMoisture" x1="0" y1="0" x2="0" y2="1">
+                                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                                        </linearGradient>
+                                                    </defs>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff05" vertical={false} />
+                                                    <XAxis dataKey="time" stroke="#475569" fontSize={10} axisLine={false} tickLine={false} />
+                                                    <YAxis stroke="#475569" fontSize={10} axisLine={false} tickLine={false} />
+                                                    <Tooltip contentStyle={{ backgroundColor: '#020617', border: '1px solid #ffffff10', borderRadius: '12px' }} />
+                                                    <Area type="monotone" dataKey="moisture" stroke="#10b981" strokeWidth={3} fill="url(#colorMoisture)" />
+                                                </AreaChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+
+                                    {/* Project Security & API Key Integration */}
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/10 space-y-4">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="p-2.5 rounded-xl bg-primary-500/10 text-primary-400">
+                                                    <ShieldCheck size={20} />
+                                                </div>
+                                                <h4 className="font-bold text-white">Project Security</h4>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <div className="p-4 bg-slate-950 rounded-2xl border border-white/5 space-y-2">
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Active API Key ID</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <code className="text-xs text-primary-400">{selectedDevice.api_key_id || 'No Key Linked'}</code>
+                                                        <button 
+                                                            onClick={() => copyToClipboard(selectedDevice.api_key_id, 'device-key-id')}
+                                                            className="text-slate-500 hover:text-white transition-colors"
+                                                        >
+                                                            <Copy size={14} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => setActiveTab('api')}
+                                                    className="w-full py-3 bg-white/5 hover:bg-white/10 text-white font-bold rounded-xl text-xs transition-all border border-white/5"
+                                                >
+                                                    Manage Project Keys
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/10 space-y-4">
+                                            <div className="flex items-center gap-3 mb-2">
+                                                <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-400">
+                                                    <Zap size={20} />
+                                                </div>
+                                                <h4 className="font-bold text-white">Alert Settings</h4>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Moisture Threshold (%)</label>
+                                                    <div className="flex items-center gap-4">
+                                                        <input 
+                                                            type="range" 
+                                                            min="10" 
+                                                            max="80" 
+                                                            className="flex-1 accent-primary-500"
+                                                            value={selectedDevice.metadata?.moisture_threshold || 30}
+                                                            onChange={(e) => setSelectedDevice({...selectedDevice, metadata: {...selectedDevice.metadata, moisture_threshold: parseInt(e.target.value)}})}
+                                                        />
+                                                        <span className="text-sm font-black text-white w-8">{selectedDevice.metadata?.moisture_threshold || 30}%</span>
+                                                    </div>
+                                                </div>
+                                                <button 
+                                                    onClick={() => updateDeviceWidgets(selectedDevice.metadata.widgets)}
+                                                    className="w-full py-3 premium-gradient text-white font-bold rounded-xl text-xs shadow-lg shadow-primary-500/20"
+                                                >
+                                                    Save Alert Settings
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {selectedDevice.metadata?.type !== 'irrigation' && (
+                                <div className="h-64 flex flex-col items-center justify-center text-slate-500 glass-morphism rounded-[3rem] border border-white/5">
+                                    <LayoutDashboard size={48} className="mb-4 opacity-20" />
+                                    <p className="font-bold">Dashboard for {selectedDevice.metadata?.type || 'unknown'} coming soon.</p>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="h-[600px] flex flex-col items-center justify-center text-slate-500 glass-morphism rounded-[3rem] border border-white/5 border-dashed space-y-4">
+                            <div className="w-24 h-24 rounded-full bg-white/5 flex items-center justify-center text-slate-700">
+                                <Activity size={48} />
+                            </div>
+                            <div className="text-center">
+                                <h3 className="text-xl font-bold text-white">No Project Selected</h3>
+                                <p className="max-w-xs mx-auto text-sm">Select an IoT device from the sidebar to view its specialized control panel.</p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+          </motion.div>
+        )}
+
         {activeTab === 'api' && (
           <motion.div 
             key="api"
@@ -289,6 +788,10 @@ const IndustrialSuite = () => {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
+            <div className="flex flex-col space-y-2 mb-4">
+                <h3 className="text-xl font-bold text-white">Secure API Tokens</h3>
+                <p className="text-slate-500 text-sm">Generate secret keys to authenticate your external apps, ESP32 devices, or scripts. These keys allow programmatic access to SmartLink services.</p>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Create Key Card */}
                 <div className="lg:col-span-1 glass-morphism p-8 rounded-[2.5rem] border border-white/10 space-y-6 self-start">
@@ -428,6 +931,10 @@ const IndustrialSuite = () => {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
+            <div className="flex flex-col space-y-2 mb-4">
+                <h3 className="text-xl font-bold text-white">Bulk Engine</h3>
+                <p className="text-slate-500 text-sm">Upload thousands of long URLs to shorten them all at once. Ideal for marketing campaigns, catalogs, or large-scale migrations.</p>
+            </div>
             <div className="glass-morphism p-10 rounded-[3rem] border border-white/10 space-y-8">
                 <div className="flex items-center gap-4 border-b border-white/5 pb-6">
                     <div className="p-3 rounded-2xl bg-orange-500/10 text-orange-400">
@@ -511,6 +1018,10 @@ const IndustrialSuite = () => {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
+            <div className="flex flex-col space-y-2 mb-4">
+                <h3 className="text-xl font-bold text-white">Real-time Webhooks</h3>
+                <p className="text-slate-500 text-sm">SmartLink will send an HTTP POST request to your server every time an event occurs (like a link click or device event). This allows your backend to react instantly.</p>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Webhook Config */}
                 <div className="lg:col-span-1 glass-morphism p-8 rounded-[2.5rem] border border-white/10 space-y-6 self-start">
@@ -723,6 +1234,7 @@ const IndustrialSuite = () => {
             </div>
           </motion.div>
         )}
+
         {activeTab === 'automation' && (
           <motion.div 
             key="automation"
@@ -731,6 +1243,10 @@ const IndustrialSuite = () => {
             exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
+            <div className="flex flex-col space-y-2 mb-4">
+                <h3 className="text-xl font-bold text-white">Automation Logic</h3>
+                <p className="text-slate-500 text-sm">Create "If-This-Then-That" rules. For example: "IF a user from India clicks a link, THEN trigger a specific webhook" or "IF moisture is low, THEN alert my system".</p>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Rule Builder */}
                 <div className="lg:col-span-1 glass-morphism p-8 rounded-[2.5rem] border border-white/10 space-y-6 self-start">
@@ -824,7 +1340,7 @@ const IndustrialSuite = () => {
                                 </button>
                                 <div className="flex items-center gap-3">
                                     <div className="p-3 rounded-2xl bg-primary-500/10 text-primary-400">
-                                        <Play size={20} />
+                                        <Activity size={20} />
                                     </div>
                                     <div>
                                         <h5 className="text-white font-bold">{rule.name}</h5>
@@ -852,6 +1368,76 @@ const IndustrialSuite = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Widget Configuration Modal */}
+      <AnimatePresence>
+        {showConfigModal && (
+            <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-950/80 backdrop-blur-sm"
+            >
+                <motion.div 
+                    initial={{ scale: 0.9, y: 20 }}
+                    animate={{ scale: 1, y: 0 }}
+                    className="glass-morphism max-w-lg w-full p-8 rounded-[2.5rem] border border-white/20 space-y-6 shadow-2xl"
+                >
+                    <div className="flex justify-between items-center">
+                        <h3 className="text-2xl font-bold text-white">Configure Dashboard</h3>
+                        <button onClick={() => setShowConfigModal(false)} className="text-slate-500 hover:text-white transition-colors">
+                             <Trash2 size={20} />
+                        </button>
+                    </div>
+                    <p className="text-slate-500 text-sm">Select the sensor tools you want to display on your dashboard.</p>
+                    
+                    <div className="grid grid-cols-1 gap-3">
+                        {availableWidgets.map(widget => (
+                            <button
+                                key={widget.id}
+                                onClick={() => {
+                                    const current = selectedDevice.metadata.widgets || [];
+                                    const next = current.includes(widget.id) 
+                                        ? current.filter(id => id !== widget.id)
+                                        : [...current, widget.id];
+                                    setSelectedDevice({ ...selectedDevice, metadata: { ...selectedDevice.metadata, widgets: next } });
+                                }}
+                                className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                                    (selectedDevice.metadata.widgets || []).includes(widget.id)
+                                    ? 'bg-primary-500/10 border-primary-500/30 text-white'
+                                    : 'bg-white/5 border-white/5 text-slate-500'
+                                }`}
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div className={`p-2 rounded-lg ${(selectedDevice.metadata.widgets || []).includes(widget.id) ? 'bg-primary-500 text-white' : 'bg-white/5'}`}>
+                                        {widget.icon}
+                                    </div>
+                                    <span className="font-bold text-sm">{widget.label}</span>
+                                </div>
+                                {(selectedDevice.metadata.widgets || []).includes(widget.id) && <Check size={16} className="text-primary-400" />}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="flex gap-4">
+                        <button 
+                            onClick={() => setShowConfigModal(false)}
+                            className="flex-1 py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-2xl transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            onClick={() => updateDeviceWidgets(selectedDevice.metadata.widgets)}
+                            className="flex-1 py-4 premium-gradient text-white font-bold rounded-2xl transition-all shadow-lg shadow-primary-500/20"
+                        >
+                            Save Configuration
+                        </button>
+                    </div>
+                </motion.div>
+            </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };

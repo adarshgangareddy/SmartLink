@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from ..core.database import get_database
 from .auth import get_current_user
 from ..schemas.base import (
@@ -13,6 +13,7 @@ from .urls import shorten_url
 from datetime import datetime
 import uuid
 import secrets
+import random
 
 router = APIRouter()
 
@@ -105,6 +106,141 @@ async def list_devices(current_user: dict = Depends(get_current_user)):
     db = get_database()
     cursor = db.devices.find({"user_id": current_user["_id"]})
     return await cursor.to_list(length=100)
+
+@router.put("/devices/{device_id}")
+async def update_device(
+    device_id: str,
+    update_data: Dict[str, Any],
+    current_user: dict = Depends(get_current_user)
+):
+    check_pro(current_user)
+    db = get_database()
+    
+    # Verify device
+    device = await db.devices.find_one({"_id": device_id, "user_id": current_user["_id"]})
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+        
+    await db.devices.update_one(
+        {"_id": device_id},
+        {"$set": {"metadata": update_data.get("metadata", device.get("metadata", {}))}}
+    )
+    return {"status": "updated"}
+
+@router.post("/devices/{device_id}/events")
+
+async def log_device_event(
+    device_id: str, 
+    payload: Dict[str, Any], 
+    current_user: dict = Depends(get_current_user)
+):
+    check_pro(current_user)
+    db = get_database()
+    
+    # Verify device belongs to user
+    device = await db.devices.find_one({"_id": device_id, "user_id": current_user["_id"]})
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    event_dict = {
+        "device_id": device_id,
+        "user_id": current_user["_id"],
+        "timestamp": datetime.utcnow(),
+        "data": payload
+    }
+    await db.device_events.insert_one(event_dict)
+    
+    # Update device last active
+    await db.devices.update_one(
+        {"_id": device_id},
+        {"$set": {"last_active": datetime.utcnow()}, "$inc": {"usage_stats.api_calls": 1}}
+    )
+    
+    # Check for automations
+    # (Existing evaluate_rules could be adapted here if needed)
+    
+    return {"status": "recorded", "timestamp": event_dict["timestamp"]}
+
+@router.get("/devices/{device_id}/events")
+async def get_device_events(
+    device_id: str, 
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user)
+):
+    check_pro(current_user)
+    db = get_database()
+    
+    # Verify device
+    device = await db.devices.find_one({"_id": device_id, "user_id": current_user["_id"]})
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+        
+    cursor = db.device_events.find({"device_id": device_id}).sort("timestamp", -1).limit(limit)
+    return await cursor.to_list(length=limit)
+
+@router.post("/devices/{device_id}/command")
+async def send_device_command(
+    device_id: str,
+    command: Dict[str, Any],
+    current_user: dict = Depends(get_current_user)
+):
+    check_pro(current_user)
+    db = get_database()
+    
+    # Verify device
+    device = await db.devices.find_one({"_id": device_id, "user_id": current_user["_id"]})
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+        
+    # In a real system, this would be pushed via MQTT or WebSocket
+    # For this demo, we store it as a "pending command" that the device can poll for
+    command_dict = {
+        "device_id": device_id,
+        "user_id": current_user["_id"],
+        "command": command,
+        "status": "pending",
+        "created_at": datetime.utcnow()
+    }
+    await db.device_commands.insert_one(command_dict)
+    
+    # Also update device metadata to reflect current desired state
+    if "pump" in command:
+        await db.devices.update_one(
+            {"_id": device_id},
+            {"$set": {"metadata.pump_status": command["pump"]}}
+        )
+        
+    return {"status": "command_sent", "command_id": str(command_dict["_id"])}
+
+@router.get("/devices/{device_id}/commands/next")
+async def get_next_device_command(
+    device_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    check_pro(current_user)
+    db = get_database()
+    
+    # Verify device
+    device = await db.devices.find_one({"_id": device_id, "user_id": current_user["_id"]})
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+        
+    # Find oldest pending command
+    command = await db.device_commands.find_one_and_update(
+        {"device_id": device_id, "status": "pending"},
+        {"$set": {"status": "delivered", "delivered_at": datetime.utcnow()}},
+        sort=[("created_at", 1)]
+    )
+    
+    if not command:
+        return {"status": "no_commands"}
+        
+    return {
+        "command_id": str(command["_id"]),
+        "command": command["command"],
+        "timestamp": command["created_at"]
+    }
+
 
 # --- WEBHOOK SYSTEM ---
 
@@ -244,4 +380,48 @@ async def get_api_documentation():
             }
         ],
         "auth": "Include X-API-Key in your request headers for all Industrial endpoints."
+    }
+
+# --- IN-MEMORY SIMULATION STORAGE ---
+# Stores pump status for each device ID: { "device_id": "OFF" }
+SIMULATED_DEVICES: Dict[str, str] = {}
+
+# --- SIMULATION ENDPOINTS (Hardware-Free) ---
+
+@router.get("/devices/{device_id}/data")
+async def get_simulated_data(device_id: str):
+    """
+    Simulates real-time sensor data for testing without hardware.
+    Returns random moisture/temp and the current stored pump state.
+    """
+    # Get current pump state from memory, default to OFF if never set
+    pump_status = SIMULATED_DEVICES.get(device_id, "OFF")
+    
+    return {
+        "moisture": random.randint(20, 80),
+        "temperature": random.randint(25, 35),
+        "pump": pump_status,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@router.post("/devices/{device_id}/control")
+async def control_simulated_device(device_id: str, payload: Dict[str, str]):
+    """
+    Updates the pump status in memory for simulation testing.
+    Accepts: { "pump": "ON" } or { "pump": "OFF" }
+    """
+    new_status = payload.get("pump")
+    if new_status not in ["ON", "OFF"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid status. Use 'ON' or 'OFF'."
+        )
+    
+    # Update the in-memory state
+    SIMULATED_DEVICES[device_id] = new_status
+    
+    return {
+        "status": "success",
+        "device_id": device_id,
+        "pump": new_status
     }

@@ -1,38 +1,41 @@
-# 🔗 SmartLink: Advanced URL Shortener & Analytics Platform
+# 🔗 SmartLink Ultra: Enterprise Link Management & IoT Control
 
 ![Status](https://img.shields.io/badge/Status-Active-brightgreen)
-![Version](https://img.shields.io/badge/Version-1.0.0-blue)
+![Version](https://img.shields.io/badge/Version-2.1.0-blue)
 ![Tech Stack](https://img.shields.io/badge/Stack-FastAPI%20%7C%20React%20%7C%20MongoDB-orange)
 
-SmartLink is a high-performance, feature-rich URL shortener and analytics platform built with modern web technologies. It provides seamless URL redirection, detailed traffic analytics, and an industrial-grade API for enterprise integration.
+**SmartLink Ultra** is a premium, full-stack platform designed for modern developers and industrial teams. Beyond high-performance URL shortening and analytics, it features a state-of-the-art **Industrial IoT Control Plane** for real-time fleet monitoring and automation.
 
 ---
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Lightning Fast Redirection**: Optimized redirection engine for minimal latency.
-- **Advanced Analytics**: Track clicks, geographic location, user agents, and referrers.
-- **Industrial API**: Robust RESTful API for programmatic link management.
-- **Secure Authentication**: JWT-based authentication for user accounts and data protection.
-- **Subscription Tiers**: Integrated payment processing for "Pro" and "Industrial" plans.
-- **QR Code Generation**: Automatically generate QR codes for every shortened link.
+### 📡 Industrial IoT Control Plane (New)
+*   **Fleet Management**: Monitor your IoT devices (ESP32, ESP8266, Arduino) with ease.
+*   **Hardware-Free Simulation**: Test your dashboards immediately using our built-in software simulation endpoints—no hardware required.
+*   **Real-time Analytics**: Live charts for Moisture, Temperature, and Humidity.
+*   **Remote Control**: Manually toggle industrial hardware (like pumps or motors) directly from the dashboard.
+
+### 🔗 Link & Traffic Engine
+*   **Lightning Redirection**: Optimized engine for <50ms redirection latency.
+*   **Pro Analytics**: Track geographic location, referral sources, and user-agent data.
+*   **Custom Branding**: Create professional, trust-worthy short links.
+*   **QR Ecosystem**: Instant high-resolution QR codes for every link.
+
+### 🛡 Enterprise Security & API
+*   **Pro Gating**: Advanced features protected by a Pro-tier subscription system.
+*   **API Key Management**: Securely generate and revoke keys for system-to-system integration.
+*   **Webhook Engine**: Trigger external actions automatically based on link clicks or IoT events.
 
 ---
 
 ## 🛠 Tech Stack
 
-### Backend
-- **Framework**: FastAPI (Python 3.11+)
-- **Database**: MongoDB (Motor)
-- **Caching**: Redis
-- **Security**: OAuth2 with JWT, Passlib (Bcrypt)
-- **Deployment**: Docker, Gunicorn/Uvicorn
-
-### Frontend
-- **Framework**: React (Vite)
-- **Styling**: Tailwind CSS
-- **State Management**: React Context API
-- **Icons**: Lucide React
+| Backend (Python) | Frontend (React) | Infrastructure |
+| :--- | :--- | :--- |
+| **FastAPI** (Async Core) | **Vite** (Performance Build) | **MongoDB** (NoSQL) |
+| **Pydantic** (Validation) | **Tailwind CSS** (Premium UI) | **Docker** (Containerized) |
+| **JWT** (Auth) | **Framer Motion** (Animations) | **Ngrok/LT** (Tunnels) |
 
 ---
 
@@ -43,61 +46,38 @@ SmartLink is a high-performance, feature-rich URL shortener and analytics platfo
 - Node.js 18+
 - MongoDB instance (local or Atlas)
 
-### Backend Setup
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
-2. Create and activate a virtual environment:
-   ```bash
-   python -m venv venv
-   venv\Scripts\activate
-   ```
-3. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. Configure `.env` file (copy from `.env.example` if available).
-5. Start the server:
-   ```bash
-   uvicorn app.main:app --reload
-   ```
-
-### Frontend Setup
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
-
----
-
-## 🐳 Docker Deployment
-
-The project is fully containerized for easy deployment.
-
+### 1. Backend Setup
 ```bash
-docker-compose up --build
+cd backend
+python -m venv venv
+source venv/bin/activate  # venv\Scripts\activate on Windows
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+### 2. Frontend Setup
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 ---
 
-## 🛡 License
+## ⚙️ Quick Start (Simulation Mode)
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Want to see the IoT dashboard in action without hardware? Use our simulation endpoints!
+
+1.  **Start Backend**: `cd backend && uvicorn app.main:app --reload`
+2.  **Start Frontend**: `cd frontend && npm run dev`
+3.  **Simulation Access**:
+    *   `GET /api/industrial/devices/{id}/data` -> Get live random sensor readings.
+    *   `POST /api/industrial/devices/{id}/control` -> Update pump status in memory.
 
 ---
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 🛡 License
+MIT License. Built with precision for the next generation of connected applications.
 
 ---
 

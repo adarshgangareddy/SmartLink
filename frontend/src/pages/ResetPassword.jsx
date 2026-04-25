@@ -37,8 +37,17 @@ const ResetPassword = () => {
             });
             toast.success(res.data.msg || "Password reset successfully");
             navigate('/login');
-        } catch (err) {
-            toast.error(err.response?.data?.detail || "Invalid or expired OTP");
+            let errorMsg = "Invalid or expired OTP";
+            if (err.response?.data?.detail) {
+                if (Array.isArray(err.response.data.detail)) {
+                    errorMsg = err.response.data.detail.map(e => e.msg).join(', ');
+                } else if (typeof err.response.data.detail === 'string') {
+                    errorMsg = err.response.data.detail;
+                } else {
+                    errorMsg = JSON.stringify(err.response.data.detail);
+                }
+            }
+            toast.error(errorMsg);
         } finally {
             setLoading(false);
         }

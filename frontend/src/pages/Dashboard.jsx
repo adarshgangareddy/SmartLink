@@ -48,8 +48,17 @@ const Dashboard = () => {
       setUrl('');
       setCustomAlias('');
       toast.success('Link shortened successfully!');
-    } catch (err) {
-      toast.error(err.response?.data?.detail || 'Failed to shorten URL');
+      let errorMsg = 'Failed to shorten URL';
+      if (err.response?.data?.detail) {
+        if (Array.isArray(err.response.data.detail)) {
+          errorMsg = err.response.data.detail.map(e => e.msg).join(', ');
+        } else if (typeof err.response.data.detail === 'string') {
+          errorMsg = err.response.data.detail;
+        } else {
+          errorMsg = JSON.stringify(err.response.data.detail);
+        }
+      }
+      toast.error(errorMsg);
     } finally {
       setIsShortening(false);
     }

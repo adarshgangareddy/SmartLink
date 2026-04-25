@@ -14,7 +14,7 @@ const AppLayout = ({ children }) => {
     { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
     { name: 'Industrial', icon: <Globe size={20} />, path: '/industrial', proOnly: true },
     { name: 'Profile', icon: <User size={20} />, path: '/profile' },
-    { name: 'Go Pro', icon: <Sparkles size={20} />, path: '/go-pro', highlight: true },
+    ...(!user?.is_pro ? [{ name: 'Go Pro', icon: <Sparkles size={20} />, path: '/go-pro', highlight: true }] : []),
     { name: 'About', icon: <Info size={20} />, path: '/about' },
   ];
 
