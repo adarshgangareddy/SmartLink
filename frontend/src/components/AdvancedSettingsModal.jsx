@@ -14,7 +14,8 @@ const AdvancedSettingsModal = ({ isOpen, onClose, link, onUpdate }) => {
     expiry_date: link.expiry_date ? new Date(link.expiry_date).toISOString().split('T')[0] : '',
     show_splash_screen: link.show_splash_screen || false,
     splash_logo_url: link.splash_logo_url || '',
-    retargeting_pixels: link.retargeting_pixels || []
+    retargeting_pixels: link.retargeting_pixels || [],
+    password: link.password || ''
   });
 
   const [activeTab, setActiveTab] = useState('routing'); // routing, limits, engagement
@@ -64,6 +65,17 @@ const AdvancedSettingsModal = ({ isOpen, onClose, link, onUpdate }) => {
           ...formData,
           smart_redirect_geo: { ...formData.smart_redirect_geo, [country]: url }
       });
+  };
+
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setFormData({...formData, splash_logo_url: reader.result});
+        };
+        reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -231,31 +243,59 @@ const AdvancedSettingsModal = ({ isOpen, onClose, link, onUpdate }) => {
 
             {activeTab === 'limits' && (
                 <div className="space-y-10">
-                    <section className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Click Limits */}
+                        <div className="space-y-4 p-6 bg-white/5 rounded-3xl border border-white/5 relative group overflow-hidden">
+                            <div className="absolute top-0 right-0 p-3 bg-emerald-500/10 text-emerald-400 text-[8px] font-black uppercase tracking-widest border-b border-l border-white/5">Pro Feature</div>
                             <label className="text-sm font-bold text-white flex items-center gap-2">
                                 <Zap className="text-yellow-400" size={16} /> Maximum Click Limit
                             </label>
                             <input 
                                 type="number"
                                 placeholder="Infinite"
-                                className="w-full bg-slate-950 p-4 rounded-2xl border border-white/10 text-white"
+                                className="w-full bg-slate-950 p-4 rounded-2xl border border-white/10 text-white focus:border-primary-500 transition-colors"
                                 value={formData.max_clicks}
                                 onChange={(e) => setFormData({...formData, max_clicks: e.target.value})}
                             />
                             <p className="text-[10px] text-slate-500 font-medium">Link will deactivate automatically once reached.</p>
                         </div>
-                        <div className="space-y-2">
+
+                        {/* Auto-Expiry */}
+                        <div className="space-y-4 p-6 bg-white/5 rounded-3xl border border-white/5 relative group overflow-hidden">
+                            <div className="absolute top-0 right-0 p-3 bg-blue-500/10 text-blue-400 text-[8px] font-black uppercase tracking-widest border-b border-l border-white/5">Pro Feature</div>
                             <label className="text-sm font-bold text-white flex items-center gap-2">
                                 <Calendar className="text-blue-400" size={16} /> Auto-Expiry Date
                             </label>
                             <input 
                                 type="date"
-                                className="w-full bg-slate-950 p-4 rounded-2xl border border-white/10 text-white"
+                                className="w-full bg-slate-950 p-4 rounded-2xl border border-white/10 text-white focus:border-primary-500 transition-colors"
                                 value={formData.expiry_date}
                                 onChange={(e) => setFormData({...formData, expiry_date: e.target.value})}
                             />
                             <p className="text-[10px] text-slate-500 font-medium">Link will expire at 00:00 UTC on this day.</p>
+                        </div>
+                    </div>
+
+                    {/* Password Protection */}
+                    <section className="space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                                <Shield className="text-red-400" size={18} /> Asset Lockdown
+                            </h3>
+                            <div className="px-2 py-0.5 rounded-lg bg-red-500/10 text-red-400 text-[8px] font-black uppercase border border-red-500/20 tracking-widest">Advanced</div>
+                        </div>
+                        <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/5 space-y-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Access Password</label>
+                                <input 
+                                    type="password"
+                                    className="w-full bg-slate-950 p-4 rounded-2xl border border-white/10 text-white font-mono"
+                                    placeholder="Leave blank for no password"
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                                />
+                                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">Visitors will be prompted to enter this password before being redirected to the target URL.</p>
+                            </div>
                         </div>
                     </section>
 
@@ -309,19 +349,31 @@ const AdvancedSettingsModal = ({ isOpen, onClose, link, onUpdate }) => {
                                 className="p-8 bg-slate-900 rounded-[2.5rem] border border-primary-500/20 space-y-6"
                             >
                                 <div className="space-y-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Splash Logo URL</label>
-                                    <div className="flex gap-4">
-                                        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-                                            {formData.splash_logo_url ? <img src={formData.splash_logo_url} className="w-full h-full object-contain" /> : <ImageIcon className="text-slate-700" />}
+                                    <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Splash Logo</label>
+                                    <div className="flex gap-4 items-center">
+                                        <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                            {formData.splash_logo_url ? <img src={formData.splash_logo_url} className="w-full h-full object-contain p-2 bg-white" /> : <ImageIcon className="text-slate-700" />}
                                         </div>
-                                        <input 
-                                            type="url"
-                                            className="flex-1 bg-slate-950 p-4 rounded-xl border border-white/10 text-white text-xs"
-                                            placeholder="https://brand.com/logo.png"
-                                            value={formData.splash_logo_url}
-                                            onChange={(e) => setFormData({...formData, splash_logo_url: e.target.value})}
-                                        />
+                                        <div className="flex-1 relative">
+                                            <input 
+                                                type="file" 
+                                                accept="image/*"
+                                                onChange={handleLogoUpload}
+                                                className="hidden" 
+                                                id="splash-logo-upload" 
+                                            />
+                                            <label 
+                                                htmlFor="splash-logo-upload"
+                                                className="flex items-center justify-center gap-3 w-full p-4 bg-slate-950 border-2 border-dashed border-white/10 rounded-xl cursor-pointer hover:border-primary-500 hover:bg-white/5 transition-colors group"
+                                            >
+                                                <ImageIcon className="text-slate-500 group-hover:text-primary-400" size={16} />
+                                                <span className="text-xs font-bold text-slate-400 group-hover:text-white uppercase tracking-widest">
+                                                    {formData.splash_logo_url ? 'Change Logo' : 'Upload from Device'}
+                                                </span>
+                                            </label>
+                                        </div>
                                     </div>
+                                    <p className="text-[10px] text-slate-500 font-medium">Recommended: PNG with transparent background.</p>
                                 </div>
                             </motion.div>
                         )}

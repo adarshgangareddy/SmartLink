@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Link2, BarChart3, User, LogOut, ChevronLeft, Sparkles, Info, Heart, ExternalLink, ShieldCheck, Globe, Share2 } from 'lucide-react';
+import { LayoutDashboard, Link2, BarChart3, User, LogOut, ChevronLeft, Sparkles, Info, Heart, ExternalLink, ShieldCheck, Globe, Share2, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const AppLayout = ({ children }) => {
@@ -13,13 +13,15 @@ const AppLayout = ({ children }) => {
     { name: 'My Links', icon: <Link2 size={20} />, path: '/links' },
     { name: 'Analytics', icon: <BarChart3 size={20} />, path: '/analytics' },
     { name: 'Industrial', icon: <Globe size={20} />, path: '/industrial', proOnly: true },
+    { name: 'Geo-Redirects', icon: <Globe size={20} />, path: '/geo-redirects', proOnly: true },
+    { name: 'Link Lifecycle', icon: <Clock size={20} />, path: '/link-lifecycle', proOnly: true },
     { name: 'Profile', icon: <User size={20} />, path: '/profile' },
     ...(!user?.is_pro ? [{ name: 'Go Pro', icon: <Sparkles size={20} />, path: '/go-pro', highlight: true }] : []),
     { name: 'About', icon: <Info size={20} />, path: '/about' },
   ];
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-50 overflow-hidden">
+    <div className="flex h-screen text-slate-50 overflow-hidden">
       {/* Sidebar */}
       <aside className="w-68 glass-morphism border-r border-white/5 flex flex-col relative z-20">
         <div className="p-6">
@@ -31,7 +33,7 @@ const AppLayout = ({ children }) => {
           </div>
           
           <nav className="space-y-2">
-            {navItems.filter(item => !item.proOnly || user?.is_pro).map((item) => (
+            {navItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
@@ -148,6 +150,7 @@ const AppLayout = ({ children }) => {
                     <ul className="space-y-4">
                         <li><NavLink to="/dashboard" className="text-sm text-slate-500 hover:text-primary-400 transition-colors">Dashboard</NavLink></li>
                         <li><NavLink to="/links" className="text-sm text-slate-500 hover:text-primary-400 transition-colors">My Links</NavLink></li>
+                        <li><NavLink to="/link-lifecycle" className="text-sm text-slate-500 hover:text-primary-400 transition-colors">Link Lifecycle</NavLink></li>
                         <li><NavLink to="/go-pro" className="text-sm text-slate-500 hover:text-primary-400 transition-colors">Pricing</NavLink></li>
                     </ul>
                 </div>

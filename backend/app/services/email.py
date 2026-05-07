@@ -5,14 +5,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 def send_reset_email(to_email: str, otp: str):
-    # If AWS is not configured, just print to console for local development!
+    # Always print prominently so the developer can see the OTP in their terminal logs
+    print("="*50)
+    print("SMARTLINK PASSWORD RESET OTP")
+    print(f"Email: {to_email}")
+    print(f"Your OTP is: {otp}")
+    print("="*50)
+
+    # If AWS is not configured, just return True since we've logged it
     if not settings.AWS_ACCESS_KEY_ID or not settings.AWS_SES_FROM_EMAIL:
-        # We print prominently so the developer can see the OTP in their terminal
-        print("="*50)
-        print("AWS SES NOT CONFIGURED - MOCK EMAIL MODE")
-        print(f"Mock Email sent to: {to_email}")
-        print(f"Your OTP is: {otp}")
-        print("="*50)
         return True
 
     # Actual AWS SES Call

@@ -45,6 +45,17 @@ const Profile = () => {
     }
   };
 
+  const handleAvatarUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setEditData({...editData, profile_photo: reader.result});
+        };
+        reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -63,8 +74,8 @@ const Profile = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Profile Card */}
         <section className="lg:col-span-1 space-y-6">
-          <div className="glass-morphism p-8 rounded-[2.5rem] border border-white/5 text-center relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-full h-24 premium-gradient opacity-10" />
+          <div className="glass-morphism p-8 rounded-[2.5rem] border border-blue-500/20 bg-gradient-to-b from-blue-500/10 to-transparent text-center relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-full h-24 premium-gradient opacity-20" />
             
             <div className="relative inline-block mb-6">
                 <div className="w-32 h-32 rounded-full border-4 border-slate-900 shadow-2xl overflow-hidden bg-slate-800 mx-auto">
@@ -74,13 +85,19 @@ const Profile = () => {
                         className="w-full h-full object-cover"
                     />
                 </div>
-                <button 
-                    type="button"
-                    onClick={() => document.getElementsByName('profile_photo_url')[0]?.focus()}
-                    className="absolute bottom-1 right-1 p-2 bg-primary-500 text-white rounded-full shadow-lg hover:scale-110 transition-transform"
+                <label 
+                    htmlFor="avatar-upload"
+                    className="absolute bottom-1 right-1 p-2 bg-primary-500 text-white rounded-full shadow-lg hover:scale-110 transition-transform cursor-pointer"
                 >
                     <Camera size={16} />
-                </button>
+                </label>
+                <input 
+                    type="file"
+                    id="avatar-upload"
+                    accept="image/*"
+                    onChange={handleAvatarUpload}
+                    className="hidden"
+                />
             </div>
 
             <h2 className="text-2xl font-bold text-white mb-1">{user?.full_name}</h2>
@@ -100,8 +117,8 @@ const Profile = () => {
             </div>
           </div>
 
-          <div className="glass-morphism p-6 rounded-[2rem] border border-white/5">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Select Avatar</h3>
+          <div className="glass-morphism p-6 rounded-[2rem] border border-purple-500/20 bg-gradient-to-tr from-purple-500/10 to-transparent">
+                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4">Select Avatar</h3>
                 <div className="grid grid-cols-3 gap-3">
                     {AVATARS.map((avatar, i) => (
                         <button 
@@ -123,7 +140,7 @@ const Profile = () => {
 
         {/* Edit Form */}
         <section className="lg:col-span-2">
-          <form onSubmit={handleUpdate} className="glass-morphism p-8 md:p-10 rounded-[2.5rem] border border-white/5 space-y-8">
+          <form onSubmit={handleUpdate} className="glass-morphism p-8 md:p-10 rounded-[2.5rem] border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                     <label className="text-sm font-semibold text-slate-400 ml-1 flex items-center gap-2">
@@ -151,26 +168,32 @@ const Profile = () => {
                 </div>
                 <div className="col-span-full space-y-2">
                     <label className="text-sm font-semibold text-slate-400 ml-1 flex items-center gap-2">
-                        <Camera size={14} /> Profile Photo URL
+                        <Camera size={14} className="text-pink-400" /> Profile Photo
                     </label>
                     <div className="flex gap-4">
+                        <label 
+                            htmlFor="avatar-upload-main"
+                            className="flex-1 flex items-center justify-center gap-3 px-5 py-4 bg-slate-900/80 rounded-2xl border-2 border-dashed border-white/10 hover:border-pink-500/50 hover:bg-white/5 text-slate-400 hover:text-white transition-all cursor-pointer group"
+                        >
+                            <Camera size={18} className="group-hover:text-pink-400 transition-colors" />
+                            <span className="text-sm font-bold tracking-wide">Upload from Computer</span>
+                        </label>
                         <input 
-                            name="profile_photo_url"
-                            type="text"
-                            className="flex-1 px-5 py-4 bg-slate-900/50 rounded-2xl border border-white/5 focus:border-primary-500/50 focus:outline-none focus:ring-4 focus:ring-primary-500/10 text-white transition-all"
-                            placeholder="https://images.unsplash.com/photo..."
-                            value={editData.profile_photo}
-                            onChange={(e) => setEditData({...editData, profile_photo: e.target.value})}
+                            type="file"
+                            id="avatar-upload-main"
+                            accept="image/*"
+                            onChange={handleAvatarUpload}
+                            className="hidden"
                         />
                         <button 
                             type="button"
                             onClick={() => setEditData({...editData, profile_photo: AVATARS[Math.floor(Math.random() * AVATARS.length)]})}
-                            className="px-6 py-4 bg-white/5 rounded-2xl border border-white/5 text-slate-300 hover:text-white hover:bg-white/10 transition-all font-bold text-xs whitespace-nowrap"
+                            className="px-6 py-4 bg-white/5 rounded-2xl border border-white/5 text-slate-300 hover:text-white hover:bg-white/10 hover:border-white/20 transition-all font-bold text-xs whitespace-nowrap shadow-lg"
                         >
-                            Randomize
+                            Random Avatar
                         </button>
                     </div>
-                    <p className="text-[10px] text-slate-500 ml-1 italic">Paste an image URL or select from the avatars on the left.</p>
+                    <p className="text-[10px] text-slate-500 ml-1 italic">Or select from the pre-made avatars on the left.</p>
                 </div>
                 <div className="col-span-full space-y-2">
                     <label className="text-sm font-semibold text-slate-400 ml-1 flex items-center gap-2">

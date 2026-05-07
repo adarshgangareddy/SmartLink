@@ -135,10 +135,8 @@ async def forgot_password(data: ForgotPassword):
     
     email_sent = send_reset_email(data.email, otp)
     if not email_sent:
-        raise HTTPException(
-            status_code=500, 
-            detail="Failed to send reset email. This may be due to AWS SES restrictions (Sandbox mode) or configuration errors."
-        )
+        print(f"[FALLBACK] Email could not be sent. OTP for {data.email} is: {otp}")
+        return {"msg": "If your email is registered, you will receive an OTP. (Local fallback: check server console for OTP)"}
         
     return {"msg": "If your email is registered, you will receive an OTP."}
 
@@ -198,3 +196,76 @@ async def update_profile(
     # Get updated user
     updated_user = await db.users.find_one({"_id": current_user["_id"]})
     return updated_user
+
+@router.post("/google")
+async def google_login(data: dict):
+    """
+    Accepts a Google credential (ID token) from the frontend.
+    Verifies it with Google's tokeninfo API and creates/logs in the user.
+    """
+    import httpx
+    db = get_database()
+    
+    credential = data.get("credential")
+    
+    if credential:
+        # Verify the ID token with Google
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}",
+                    timeout=5.0
+                )
+                if resp.status_code != 200:
+                    raise HTTPException(status_code=401, detail="Invalid Google token")
+                
+                token_data = resp.json()
+                email = token_data.get("email")
+                full_name = token_data.get("name", "")
+                profile_photo = token_data.get("picture")
+                
+                if not email:
+                    raise HTTPException(status_code=400, detail="Could not retrieve email from Google token")
+                    
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Google token verification failed: {str(e)}")
+    else:
+        # Fallback: direct email/name (for testing)
+        email = data.get("email")
+        full_name = data.get("full_name", "")
+        profile_photo = data.get("profile_photo")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Check if user exists
+    user = await db.users.find_one({"email": email})
+    if not user:
+        # Create user with Google profile data
+        user = {
+            "_id": str(uuid.uuid4()),
+            "full_name": full_name,
+            "email": email,
+            "password": get_password_hash(str(uuid.uuid4())), # random password
+            "created_at": datetime.utcnow(),
+            "bio": "",
+            "location": "",
+            "profile_photo": profile_photo,
+            "is_pro": False,
+            "reset_token": None,
+            "reset_expires": None,
+            "otp": None,
+            "otp_expires": None
+        }
+        await db.users.insert_one(user)
+    elif profile_photo and not user.get("profile_photo"):
+        # Update profile photo if user exists but has no photo
+        await db.users.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"profile_photo": profile_photo}}
+        )
+        
+    access_token = create_access_token(data={"sub": email})
+    return {"access_token": access_token, "token_type": "bearer"}
+

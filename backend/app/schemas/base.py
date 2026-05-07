@@ -100,14 +100,14 @@ class APIKeyResponse(BaseModel):
     id: str = Field(..., alias="_id")
     name: str
     user_id: str
-    key_prefix: str # Show first 8 chars only for security
+    key_prefix: str = "sl_" # Show first 8 chars only for security
     key: Optional[str] = None # Only returned on creation
-    permissions: List[APIKeyPermission]
-    rate_limit: int
+    permissions: List[APIKeyPermission] = [APIKeyPermission.READ]
+    rate_limit: int = 300
     expires_at: Optional[datetime] = None
     status: str = "active"
     last_used: Optional[datetime] = None
-    created_at: datetime
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Config:
         populate_by_name = True

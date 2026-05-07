@@ -3,7 +3,7 @@ import random
 import asyncio
 from datetime import datetime
 from fastapi import APIRouter, Request, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, HTMLResponse
 from user_agents import parse
 from ..core.database import get_database
 
@@ -18,10 +18,22 @@ async def trigger_webhook(webhook_url: str, data: dict):
     except Exception:
         pass # Don't block the redirect if webhook fails
 
-async def get_country_code(ip: str):
-    # Fallback to a free API for demonstration, in production use Header or local DB
+async def get_country_code(ip: str, test_country: str = None):
+    # Allow explicit override for testing
+    if test_country:
+        return test_country.upper()
+        
+    # VPN/Localhost Testing Mode
     if ip in ["127.0.0.1", "localhost"]:
-        return "IN" # Mock local
+        try:
+            async with httpx.AsyncClient() as client:
+                # Get the external IP of the machine (which will be the VPN IP)
+                ext_ip_res = await client.get("https://api.ipify.org?format=json", timeout=2.0)
+                if ext_ip_res.status_code == 200:
+                    ip = ext_ip_res.json().get("ip", ip)
+        except:
+            return "IN" # Fallback to India if lookup fails
+            
     try:
         async with httpx.AsyncClient() as client:
             res = await client.get(f"https://ipapi.co/{ip}/json/", timeout=1.0)
@@ -32,7 +44,7 @@ async def get_country_code(ip: str):
     return "XX"
 
 @router.get("/{short_code}")
-async def redirect_service(short_code: str, request: Request, pwd: str = Query(None)):
+async def redirect_service(short_code: str, request: Request, pwd: str = Query(None), test_country: str = Query(None)):
     db = get_database()
     url_data = await db.urls.find_one({"short_code": short_code})
     
@@ -53,8 +65,60 @@ async def redirect_service(short_code: str, request: Request, pwd: str = Query(N
 
     # Check Password
     if url_data.get("password") and url_data["password"] != pwd:
-        # In a real app we would render a password input page
-        raise HTTPException(status_code=401, detail="Password required")
+        # Return a stylized HTML page asking for the password
+        error_msg = "<p style='color: #ef4444; margin-top: 10px; font-size: 14px;'>Incorrect password</p>" if pwd else ""
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Protected Link - SmartLink</title>
+            <style>
+                body {{
+                    margin: 0; padding: 0; font-family: 'Inter', system-ui, sans-serif;
+                    background-color: #020617; color: #fff;
+                    display: flex; align-items: center; justify-content: center; height: 100vh;
+                    background-image: radial-gradient(circle at 50% 0%, #1e1b4b 0%, #020617 70%);
+                }}
+                .container {{
+                    background: rgba(255, 255, 255, 0.03);
+                    border: 1px solid rgba(255, 255, 255, 0.1);
+                    padding: 40px; border-radius: 24px; text-align: center;
+                    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+                    max-width: 400px; width: 90%;
+                    backdrop-filter: blur(20px);
+                }}
+                h2 {{ margin-top: 0; font-size: 24px; font-weight: 700; }}
+                p.sub {{ color: #94a3b8; font-size: 14px; margin-bottom: 24px; }}
+                input {{
+                    width: 100%; padding: 12px 16px; margin-bottom: 16px;
+                    background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+                    border-radius: 12px; color: white; font-size: 16px; box-sizing: border-box;
+                }}
+                input:focus {{ outline: none; border-color: #3b82f6; }}
+                button {{
+                    width: 100%; padding: 14px; background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                    border: none; border-radius: 12px; color: white; font-size: 16px; font-weight: bold;
+                    cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+                }}
+                button:hover {{ transform: translateY(-2px); box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3); }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>Protected Link</h2>
+                <p class="sub">This link is protected. Enter the password to continue.</p>
+                <form method="GET">
+                    <input type="password" name="pwd" placeholder="Enter Password" required autofocus />
+                    <button type="submit">Unlock Link</button>
+                </form>
+                {error_msg}
+            </div>
+        </body>
+        </html>
+        """
+        return HTMLResponse(content=html_content, status_code=401 if not pwd else 403)
 
     # Capture Analytics
     user_agent_row = request.headers.get("user-agent", "")
@@ -64,7 +128,7 @@ async def redirect_service(short_code: str, request: Request, pwd: str = Query(N
     # Try to get country code (Pro feature)
     country = "XX"
     if url_data.get("smart_redirect_geo"):
-        country = await get_country_code(client_ip)
+        country = await get_country_code(client_ip, test_country)
 
     analytics_entry = {
         "url_id": url_data["_id"],
@@ -112,6 +176,12 @@ async def redirect_service(short_code: str, request: Request, pwd: str = Query(N
 
     # Update counts and trigger events through Industrial Service
     await db.urls.update_one({"_id": url_data["_id"]}, {"$inc": {"clicks": 1}})
+    
+    # Write to analytics collection for link analytics dashboard
+    await db.analytics.insert_one({
+        **analytics_entry,
+        "_id": str(__import__("uuid").uuid4())
+    })
     
     from ..services.industrial_service import IndustrialService
     from ..schemas.base import EventType

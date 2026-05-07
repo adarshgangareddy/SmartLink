@@ -2,11 +2,13 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Check, Sparkles, Zap, ShieldCheck, Globe, BarChart3, QrCode, Smartphone, ArrowRight, CreditCard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
 const GoPro = () => {
   const { user, setUser } = useAuth();
+  const navigate = useNavigate();
 
   const handleUpgrade = async () => {
     try {
@@ -72,16 +74,16 @@ const GoPro = () => {
   };
 
   const features = [
-    { icon: <Zap className="text-yellow-400" />, title: 'Industrial API Access', desc: 'Dedicated high-rate API tokens for IoT device fleets.' },
-    { icon: <Globe className="text-blue-400" />, title: 'Smart Geo-Redirects', desc: 'Route users to local servers based on their country.' },
-    { icon: <ShieldCheck className="text-emerald-400" />, title: 'Link Auto-Expiry', desc: 'Links deactivate automatically after expiry or scan limit.' },
-    { icon: <Sparkles className="text-purple-400" />, title: 'Branded Splash Pages', desc: 'Show your company logo before redirecting scanners.' },
-    { icon: <Smartphone className="text-orange-400" />, title: 'Industrial Bulk Engine', desc: 'Manage thousands of links via CSV import/export.' },
-    { icon: <Zap className="text-red-400" />, title: 'Real-Time Webhooks', desc: 'Instantly notify your backend when a product is scanned.' },
-    { icon: <ShieldCheck className="text-blue-400" />, title: 'Secure Link Vault', desc: 'Password-protect sensitive product documentation.' },
-    { icon: <Zap className="text-yellow-400" />, title: 'AB Performance Rotator', desc: 'Rotate traffic between URLs to test product versions.' },
-    { icon: <Sparkles className="text-pink-400" />, title: 'Marketing Pixel Suite', desc: 'Embed FB/Google pixels in every shortened link.' },
-    { icon: <BarChart3 className="text-purple-400" />, title: 'Hardware Analytics', desc: 'Track hardware models and OS versions of scanners.' },
+    { icon: <Zap className="text-yellow-400" />, title: 'Industrial API Access', desc: 'Dedicated high-rate API tokens for IoT device fleets.', path: '/industrial' },
+    { icon: <Globe className="text-blue-400" />, title: 'Smart Geo-Redirects', desc: 'Route users to local servers based on their country.', path: '/geo-redirects' },
+    { icon: <ShieldCheck className="text-emerald-400" />, title: 'Link Auto-Expiry', desc: 'Links deactivate automatically after expiry or scan limit.', path: '/links' },
+    { icon: <Sparkles className="text-purple-400" />, title: 'Branded Splash Pages', desc: 'Show your company logo before redirecting scanners.', path: '/links' },
+    { icon: <Smartphone className="text-orange-400" />, title: 'Industrial Bulk Engine', desc: 'Manage thousands of links via CSV import/export.', path: '/industrial' },
+    { icon: <Zap className="text-red-400" />, title: 'Real-Time Webhooks', desc: 'Instantly notify your backend when a product is scanned.', path: '/industrial' },
+    { icon: <ShieldCheck className="text-blue-400" />, title: 'Secure Link Vault', desc: 'Password-protect sensitive product documentation.', path: '/links' },
+    { icon: <Zap className="text-yellow-400" />, title: 'AB Performance Rotator', desc: 'Rotate traffic between URLs to test product versions.', path: '/links' },
+    { icon: <Sparkles className="text-pink-400" />, title: 'Marketing Pixel Suite', desc: 'Embed FB/Google pixels in every shortened link.', path: '/links' },
+    { icon: <BarChart3 className="text-purple-400" />, title: 'Hardware Analytics', desc: 'Track hardware models and OS versions of scanners.', path: '/industrial' },
   ];
 
   return (
@@ -114,7 +116,8 @@ const GoPro = () => {
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.1 }}
-                    className="glass-morphism p-6 rounded-3xl border border-white/5 hover:border-white/10 transition-colors group"
+                    onClick={() => f.path && navigate(f.path)}
+                    className="glass-morphism p-6 rounded-3xl border border-white/5 hover:border-white/10 hover:bg-white/5 transition-all group cursor-pointer"
                 >
                     <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                         {f.icon}

@@ -24,8 +24,13 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379"
     REDIS_PREFIX: str = "smartlink:"
 
-    class Config:
+    # OpenWeatherMap
+    OPENWEATHERMAP_API_KEY: str = "78c33409b23fd856824fa4986ecbac36"
 
+    # Google OAuth
+    GOOGLE_CLIENT_ID: str = "1042463500096-gk2q0sk2sdn5veea5gbh1ep3eh29so2n.apps.googleusercontent.com"
+
+    class Config:
         env_file = ".env"
 
 settings = Settings()

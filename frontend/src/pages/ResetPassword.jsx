@@ -37,6 +37,7 @@ const ResetPassword = () => {
             });
             toast.success(res.data.msg || "Password reset successfully");
             navigate('/login');
+        } catch (err) {
             let errorMsg = "Invalid or expired OTP";
             if (err.response?.data?.detail) {
                 if (Array.isArray(err.response.data.detail)) {

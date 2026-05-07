@@ -1,8 +1,59 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Link2, Shield, Zap, Globe, Share2, Mail, Heart, Code2, Users2, Sparkles, Send, ExternalLink } from 'lucide-react';
+import { Link2, Shield, Zap, Globe, Share2, Mail, Heart, Code2, Users2, Sparkles, Send, ExternalLink, Clock, Lock, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const About = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const handleServiceClick = (path) => {
+    if (user?.is_pro) {
+      navigate(path);
+    } else {
+      navigate('/go-pro');
+    }
+  };
+
+  const proServices = [
+    {
+      id: 'lifecycle',
+      title: 'Auto-Expiry & Lifecycle',
+      icon: <Clock className="text-blue-400" />,
+      desc: 'Set custom auto-destruct dates and maximum click limits for your temporary campaigns.',
+      path: '/link-lifecycle'
+    },
+    {
+      id: 'geo',
+      title: 'Smart Geo-Routing',
+      icon: <Globe className="text-emerald-400" />,
+      desc: 'Dynamically route visitors to localized experiences based on their geographic location or OS.',
+      path: '/geo-redirects'
+    },
+    {
+      id: 'lockdown',
+      title: 'Asset Lockdown',
+      icon: <Lock className="text-red-400" />,
+      desc: 'Secure sensitive links behind a password barrier to ensure only authorized access.',
+      path: '/links'
+    },
+    {
+      id: 'webhooks',
+      title: 'Industrial Webhooks',
+      icon: <Send className="text-purple-400" />,
+      desc: 'Send real-time interaction telemetry to your enterprise systems upon every click.',
+      path: '/industrial'
+    },
+    {
+      id: 'brand',
+      title: 'Custom Branding & File Uploads',
+      icon: <Share2 className="text-orange-400" />,
+      desc: 'Deploy short links using your own company brand. Upload custom splash screen logos and avatar images directly from your device.',
+      path: '/go-pro'
+    }
+  ];
+
   return (
     <div className="max-w-5xl mx-auto space-y-24 pb-20">
       {/* Hero */}
@@ -82,6 +133,38 @@ const About = () => {
                     </div>
                     <h3 className="text-xl font-bold text-white">{v.title}</h3>
                     <p className="text-slate-500 text-sm leading-relaxed">{v.desc}</p>
+                </div>
+            ))}
+        </div>
+      </section>
+
+      {/* Pro Services */}
+      <section className="space-y-12">
+        <div className="text-center space-y-4">
+            <h2 className="text-3xl font-bold text-white">Pro Services & Features</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">
+                Unlock the full potential of SmartLink with our enterprise-grade toolkit. Click on any feature to manage it or learn more.
+            </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {proServices.map((service) => (
+                <div 
+                    key={service.id}
+                    onClick={() => handleServiceClick(service.path)}
+                    className="glass-morphism p-8 rounded-[2rem] border border-white/5 space-y-4 hover:bg-gradient-to-br hover:from-white/5 hover:to-white/10 hover:border-transparent transition-all cursor-pointer group relative overflow-hidden shadow-xl shadow-transparent hover:shadow-primary-500/10 before:absolute before:inset-0 before:p-[1px] before:bg-gradient-to-r before:from-blue-500/50 before:via-purple-500/50 before:to-pink-500/50 before:rounded-[2rem] before:-z-10 before:opacity-0 hover:before:opacity-100 before:transition-opacity"
+                >
+                    <div className="absolute inset-[1px] bg-[#0A0F1A] rounded-[2rem] -z-10" />
+                    <div className="absolute top-0 right-0 p-3 bg-gradient-to-bl from-primary-500/20 to-transparent text-primary-400 text-[8px] font-black uppercase tracking-widest rounded-bl-xl border-b border-l border-white/5 group-hover:border-primary-500/30 transition-colors">PRO</div>
+                    <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:scale-110 transition-transform shadow-lg">
+                        {service.icon}
+                    </div>
+                    <h3 className="text-xl font-bold text-white group-hover:text-primary-400 transition-colors">{service.title}</h3>
+                    <p className="text-slate-500 text-sm leading-relaxed">{service.desc}</p>
+                    <div className="pt-4 mt-auto">
+                        <span className="text-xs font-bold text-primary-400 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {user?.is_pro ? 'Manage Feature' : 'Unlock Pro'} <ArrowRight size={14} />
+                        </span>
+                    </div>
                 </div>
             ))}
         </div>

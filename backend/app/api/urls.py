@@ -50,13 +50,13 @@ async def shorten_url(url_in: URLCreate, current_user: dict = Depends(get_curren
         "user_id": current_user["_id"],
         "clicks": 0,
         "created_at": datetime.utcnow(),
-        "expiry_date": url_in.expiry_date,
-        "password": url_in.password,
     }
 
     # Add Pro features if applicable
     if current_user.get("is_pro"):
         url_dict.update({
+            "expiry_date": url_in.expiry_date,
+            "password": url_in.password,
             "webhook_url": url_in.webhook_url,
             "smart_redirect_geo": url_in.smart_redirect_geo,
             "smart_redirect_os": url_in.smart_redirect_os,
@@ -90,6 +90,44 @@ async def delete_link(url_id: str, current_user: dict = Depends(get_current_user
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Link not found")
     return {"message": "Link deleted successfully"}
+
+@router.put("/link/{url_id}", response_model=URLResponse)
+async def update_link(
+    url_id: str,
+    update_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    db = get_database()
+    
+    # Verify owner
+    url = await db.urls.find_one({"_id": url_id, "user_id": current_user["_id"]})
+    if not url:
+        raise HTTPException(status_code=404, detail="Link not found")
+        
+    updatable_fields = [
+        "original_url", "webhook_url", "smart_redirect_geo", "smart_redirect_os", 
+        "show_splash_screen", "splash_logo_url", "retargeting_pixels", 
+        "max_clicks", "ab_targets", "qr_style", "is_active", "password", "expiry_date"
+    ]
+    
+    update_dict = {k: v for k, v in update_data.items() if k in updatable_fields}
+    
+    # Standardize expiry_date if provided
+    if "expiry_date" in update_dict and update_dict["expiry_date"]:
+        try:
+            from datetime import datetime
+            update_dict["expiry_date"] = datetime.fromisoformat(update_dict["expiry_date"].replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception:
+            pass
+
+    if update_dict:
+        await db.urls.update_one({"_id": url_id}, {"$set": update_dict})
+        
+    updated = await db.urls.find_one({"_id": url_id})
+    return {
+        **updated,
+        "qr_code": generate_qr_code(f"{settings.BASE_URL}/{updated['short_code']}")
+    }
 
 @router.get("/analytics/all")
 async def get_all_analytics(current_user: dict = Depends(get_current_user)):

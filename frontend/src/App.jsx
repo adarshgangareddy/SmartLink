@@ -18,6 +18,9 @@ import GoPro from './pages/GoPro';
 import About from './pages/About';
 import IndustrialSuite from './pages/IndustrialSuite';
 import SplashPage from './pages/SplashPage';
+import GeoRedirects from './pages/GeoRedirects';
+import LinkLifecycle from './pages/LinkLifecycle';
+import Background from './components/Background';
 
 // Set global API base URL
 axios.defaults.baseURL = API_BASE_URL;
@@ -40,6 +43,7 @@ const PublicRoute = ({ children }) => {
 function App() {
   return (
     <Router>
+      <Background />
       <AuthProvider>
         <Toaster 
           position="top-right"
@@ -81,6 +85,12 @@ function App() {
           } />
           <Route path="/industrial" element={
             <PrivateRoute><IndustrialSuite /></PrivateRoute>
+          } />
+          <Route path="/geo-redirects" element={
+            <PrivateRoute><GeoRedirects /></PrivateRoute>
+          } />
+          <Route path="/link-lifecycle" element={
+            <PrivateRoute><LinkLifecycle /></PrivateRoute>
           } />
 
           <Route path="/reset-password" element={
